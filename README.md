@@ -85,8 +85,6 @@ Online-Quiz-App/
 - Provide a **leaderboard** feature for top scorers.
 - Improve the **UI with JavaFX** for a better user experience.
 
-## 📌 Author
-This project was developed as part of a **Java development internship**. Contributions and feedback are welcome!
 
 ---
 🎯 **Start your quiz journey today!** 🚀

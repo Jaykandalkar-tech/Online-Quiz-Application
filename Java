@@ -1,0 +1,223 @@
+import java.sql.*;
+import java.util.*;
+import javax.swing.*;
+
+public class QuizApp {
+    private static Connection conn;
+    private static String currentUser;
+    private static final String ADMIN_USERNAME = "admin";
+    private static final String ADMIN_PASSWORD = "admin123";
+
+    public static void main(String[] args) {
+        connectDatabase();
+        loginMenu();
+    }
+
+    private static void connectDatabase() {
+        try {
+            conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/quiz_db1", "root", "root");
+            System.out.println("Database Connected!");
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void loginMenu() {
+        String[] options = {"Login", "Register", "Exit"};
+        int choice = JOptionPane.showOptionDialog(null, "Select an option", "Quiz App",
+                JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE, null, options, options[0]);
+        switch (choice) {
+            case 0 -> loginUser();
+            case 1 -> registerUser();
+            case 2 -> System.exit(0);
+        }
+    }
+
+    private static void registerUser() {
+        String username = JOptionPane.showInputDialog("Enter username:");
+        String password = JOptionPane.showInputDialog("Enter password:");
+        if (username.equals(ADMIN_USERNAME)) {
+            JOptionPane.showMessageDialog(null, "Username reserved for administrator. Choose another username.");
+            loginMenu();
+            return;
+        }
+        try {
+            PreparedStatement stmt = conn.prepareStatement("INSERT INTO users (username, password) VALUES (?, ?)");
+            stmt.setString(1, username);
+            stmt.setString(2, password);
+            stmt.executeUpdate();
+            JOptionPane.showMessageDialog(null, "Registration successful!");
+            loginMenu();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void loginUser() {
+        String username = JOptionPane.showInputDialog("Enter username:");
+        String password = JOptionPane.showInputDialog("Enter password:");
+        if (username.equals(ADMIN_USERNAME) && password.equals(ADMIN_PASSWORD)) {
+            currentUser = username;
+            JOptionPane.showMessageDialog(null, "Admin login successful!");
+            mainMenu(true);
+            return;
+        }
+        try {
+            PreparedStatement stmt = conn.prepareStatement("SELECT * FROM users WHERE username = ? AND password = ?");
+            stmt.setString(1, username);
+            stmt.setString(2, password);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                currentUser = username;
+                JOptionPane.showMessageDialog(null, "Login successful!");
+                mainMenu(false);
+            } else {
+                JOptionPane.showMessageDialog(null, "Invalid credentials, try again.");
+                loginMenu();
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void mainMenu(boolean isAdmin) {
+        String[] options = isAdmin ? new String[]{"Take Quiz", "View Scores", "Manage Quizzes", "Logout"}
+                : new String[]{"Take Quiz", "View Scores", "Logout"};
+        int choice = JOptionPane.showOptionDialog(null, "Welcome, " + currentUser, "Quiz App",
+                JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE, null, options, options[0]);
+        switch (choice) {
+            case 0 -> takeQuiz();
+            case 1 -> viewScores();
+            case 2 -> {
+                if (isAdmin) manageQuizzes();
+                else logout();
+            }
+            case 3 -> logout();
+        }
+    }
+    private static void takeQuiz() {
+        try {
+            // Ensure the current user exists in the database
+            PreparedStatement checkUser = conn.prepareStatement("SELECT username FROM users WHERE username = ?");
+            checkUser.setString(1, currentUser);
+            ResultSet userResult = checkUser.executeQuery();
+            if (!userResult.next()) {
+                JOptionPane.showMessageDialog(null, "User not found in the database. Please log in again.");
+                loginMenu();
+                return;
+            }
+
+            Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery("SELECT * FROM questions ORDER BY RAND() LIMIT 5");
+            int score = 0;
+            while (rs.next()) {
+                String question = rs.getString("question_text");
+                String option1 = rs.getString("option1");
+                String option2 = rs.getString("option2");
+                String option3 = rs.getString("option3");
+                String option4 = rs.getString("option4");
+                int correctAnswer = rs.getInt("correct_option");
+
+                String[] options = {option1, option2, option3, option4};
+                int answer = JOptionPane.showOptionDialog(null, question, "Quiz Question",
+                        JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
+                if (answer + 1 == correctAnswer) {
+                    score++;
+                }
+            }
+
+            PreparedStatement stmt2 = conn.prepareStatement("INSERT INTO scores (username, score) VALUES (?, ?)");
+            stmt2.setString(1, currentUser);
+            stmt2.setInt(2, score);
+            stmt2.executeUpdate();
+            JOptionPane.showMessageDialog(null, "Quiz finished! Your score: " + score);
+            mainMenu(false);
+        } catch (SQLException e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(null, "An error occurred while saving the score. Please try again.");
+        }
+    }
+
+
+    private static void viewScores() {
+        try {
+            PreparedStatement stmt = conn.prepareStatement("SELECT * FROM scores WHERE username = ?");
+            stmt.setString(1, currentUser);
+            ResultSet rs = stmt.executeQuery();
+            StringBuilder scoreList = new StringBuilder("Your Scores:\n");
+            while (rs.next()) {
+                scoreList.append("Score: ").append(rs.getInt("score")).append("\n");
+            }
+            JOptionPane.showMessageDialog(null, scoreList.toString());
+            mainMenu(false);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void manageQuizzes() {
+        String[] options = {"Add Question", "Edit Question", "Delete Question", "Back"};
+        int choice = JOptionPane.showOptionDialog(null, "Quiz Management", "Quiz App",
+                JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE, null, options, options[0]);
+        switch (choice) {
+            case 0 -> addQuestion();
+            case 1 -> editQuestion();
+            case 2 -> deleteQuestion();
+            case 3 -> mainMenu(true);
+        }
+    }
+    private static void addQuestion() {
+        String question = JOptionPane.showInputDialog("Enter question:");
+        String option1 = JOptionPane.showInputDialog("Enter option 1:");
+        String option2 = JOptionPane.showInputDialog("Enter option 2:");
+        String option3 = JOptionPane.showInputDialog("Enter option 3:");
+        String option4 = JOptionPane.showInputDialog("Enter option 4:");
+        int correctOption = Integer.parseInt(JOptionPane.showInputDialog("Enter correct option (1-4):"));
+        try {
+            PreparedStatement stmt = conn.prepareStatement("INSERT INTO questions (question_text, option1, option2, option3, option4, correct_option) VALUES (?, ?, ?, ?, ?, ?)");
+            stmt.setString(1, question);
+            stmt.setString(2, option1);
+            stmt.setString(3, option2);
+            stmt.setString(4, option3);
+            stmt.setString(5, option4);
+            stmt.setInt(6, correctOption);
+            stmt.executeUpdate();
+            JOptionPane.showMessageDialog(null, "Question added successfully!");
+            manageQuizzes();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+    private static void editQuestion() {
+        int questionId = Integer.parseInt(JOptionPane.showInputDialog("Enter Question ID to edit:"));
+        String newQuestion = JOptionPane.showInputDialog("Enter new question:");
+        try {
+            PreparedStatement stmt = conn.prepareStatement("UPDATE questions SET question_text = ? WHERE id = ?");
+            stmt.setString(1, newQuestion);
+            stmt.setInt(2, questionId);
+            stmt.executeUpdate();
+            JOptionPane.showMessageDialog(null, "Question updated successfully!");
+            manageQuizzes();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void deleteQuestion() {
+        int questionId = Integer.parseInt(JOptionPane.showInputDialog("Enter Question ID to delete:"));
+        try {
+            PreparedStatement stmt = conn.prepareStatement("DELETE FROM questions WHERE id = ?");
+            stmt.setInt(1, questionId);
+            stmt.executeUpdate();
+            JOptionPane.showMessageDialog(null, "Question deleted successfully!");
+            manageQuizzes();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void logout() {
+        currentUser = null;
+        loginMenu();
+    }
+}

@@ -1,5 +1,5 @@
 # Online-Quiz-Application
-# Online Quiz Application
+
 
 ## 📌 Project Description
 The **Online Quiz Application** is a Java-based project that allows users to take quizzes, track their scores, and provides an admin panel to manage quiz questions. The system includes authentication for both **regular users** and **administrators**. The application is built using **JDBC for database integration with MySQL** and features a simple UI using **JOptionPane**.
